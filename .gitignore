@@ -1,3 +1,6 @@
 deneme.py
 chunks/
 __pycache__/
+downloads/
+logs/
+content_dict.txt

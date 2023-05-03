@@ -94,6 +94,16 @@ class Chunk_Downloader:
         self.content_dict = {}
         self.content_dict_file = content_dict_file
         self.downloads = []
+        self.downloads_dir = os.path.join(os.path.dirname(self.content_dict_file), 'downloads')
+        self.logs_dir = os.path.join(os.path.dirname(self.content_dict_file), 'logs')
+
+        if not os.path.exists(self.downloads_dir):
+            os.makedirs(self.downloads_dir)
+        
+        if not os.path.exists(self.logs_dir):
+            os.makedirs(self.logs_dir)
+        
+        threading.Thread(target=self.download()).start()
     
     def load_content_dict(self):
         with open(self.content_dict_file, 'r') as f:
@@ -103,13 +113,15 @@ class Chunk_Downloader:
         with open(self.content_dict_file, 'w') as f:
             json.dump(self.content_dict, f)
 
-    def download(self, content_name):
+    def download(self):
         self.load_content_dict()
+        content_name = input('Please specify the content you want to download. (e.g. "forest.png"): ')
 
-        chunks = [f"{content_name} {i}" for i in range(1, 6)]
+        chunks = [f"{content_name}_{i}" for i in range(5)]
+        log_path = os.path.join(self.logs_dir, f"{content_name}-download.log")
 
         # Initialize the download log
-        with open(f"{content_name}-download.log", "a") as log_file:
+        with open(log_path, "a") as log_file:
             log_file.write(f"{'Timestamp':<20} {'Chunk':<15} {'Downloaded From':<20}\n")
 
         for chunk_name in chunks:
@@ -120,29 +132,30 @@ class Chunk_Downloader:
                 try:
                     # Open a TCP connection to the first IP address in the array
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    s.connect((ip, 5002))
+                    s.connect((ip, 5000))
 
                     # Request the chunk
-                    request = {"requested content": chunk_name}
+                    request = {"requested_content": chunk_name}
                     s.sendall(json.dumps(request).encode())
 
                     # Receive the chunk
                     data = b''
                     while True:
-                        chunk = s.recv(1024)
+                        chunk = s.recv(2048)
                         if not chunk:
                             break
                         data += chunk
 
                     # Close the TCP connection
                     s.close()
+                    chunk_path = os.path.join(self.downloads_dir, f"{chunk_name}.chunk")
 
                     # Write the downloaded chunk to disk
-                    with open(f"{chunk_name}.chunk", "wb") as chunk_file:
+                    with open(chunk_path, "wb") as chunk_file:
                         chunk_file.write(data)
 
                     # Log the download
-                    with open(f"{content_name}-download.log", "a") as log_file:
+                    with open(log_path, "a") as log_file:
                         log_file.write(f"{time.time():<20} {chunk_name:<15} {ip:<20}\n")
 
                     downloaded = True
@@ -154,9 +167,11 @@ class Chunk_Downloader:
                 print(f"CHUNK {chunk_name} CANNOT BE DOWNLOADED FROM ONLINE PEERS.")
 
         # Merge the downloaded chunks
-        with open(f"{content_name}", "wb") as f:
+        content_path = os.path.join(self.downloads_dir, content_name)
+        with open(content_path, "wb") as f:
             for chunk_name in chunks:
-                with open(f"{chunk_name}.chunk", "rb") as chunk_file:
+                chunk_path = os.path.join(self.downloads_dir, f"{chunk_name}.chunk")
+                with open(chunk_path, "rb") as chunk_file:
                     f.write(chunk_file.read())
 
         print(f"{content_name} has been successfully downloaded.")
@@ -165,12 +180,27 @@ class Chunk_Downloader:
 
 
 class Chunk_Uploader:
-    def __init__(self, content_directory):
-        self.content_directory = content_directory
-        self.log_file = os.path.join(content_directory, "upload_log.txt")
+    def __init__(self):
+        self.chunks_dir = 'chunks'
+        self.logs_dir = 'logs'
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind(('localhost', 5000))
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.ip = self.get_local_ip()
+        self.socket.bind((self.ip, 5000))
         self.socket.listen(1)
+        threading.Thread(target=self.start).start()
+
+    def get_local_ip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # doesn't even have to be reachable
+            s.connect(('192.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except:
+            IP = '127.0.0.1'
+        finally:
+            s.close()
+        return IP
 
     def start(self):
         while True:
@@ -179,10 +209,10 @@ class Chunk_Uploader:
 
     def handle_connection(self, conn, addr):
         try:
-            data = conn.recv(1024)
-            request = json.loads(data)
-            chunk_name = request["requested content"]
-            chunk_path = os.path.join(self.content_directory, chunk_name)
+            data = conn.recv(2048)
+            request = json.loads(data.decode())
+            chunk_name = request["requested_content"]
+            chunk_path = os.path.join(self.chunks_dir, chunk_name)
             if os.path.exists(chunk_path):
                 with open(chunk_path, 'rb') as f:
                     chunk_data = f.read()
@@ -198,7 +228,8 @@ class Chunk_Uploader:
             conn.close()
 
     def log_upload(self, chunk_name, destination_address):
-        with open(self.log_file, 'a') as f:
+        log_path = os.path.join(self.logs_dir, f"{chunk_name[:len(chunk_name) - 2]}-upload.log")
+        with open(log_path, 'a') as f:
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             f.write(f"{timestamp}, {chunk_name}, {destination_address}\n")
 
@@ -211,5 +242,13 @@ class Peer:
 
         self.chunk_announcer = Chunk_Announcer()
         self.content_discovery = Content_Discovery()
+
+        selection = input('Do you want to download a content? (y/n)')
+        if selection == 'y':
+            self.chunk_uploader = Chunk_Uploader()
+            self.chunk_downloader = Chunk_Downloader('content_dict.txt')
+        
+
+
 
         
