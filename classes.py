@@ -120,10 +120,6 @@ class Chunk_Downloader:
         chunks = [f"{content_name}_{i}" for i in range(5)]
         log_path = os.path.join(self.logs_dir, f"{content_name}-download.log")
 
-        # Initialize the download log
-        with open(log_path, "a") as log_file:
-            log_file.write(f"{'Timestamp':<20} {'Chunk':<15} {'Downloaded From':<20}\n")
-
         for chunk_name in chunks:
             ips = self.content_dict.get(chunk_name, [])
             downloaded = False
@@ -156,7 +152,7 @@ class Chunk_Downloader:
 
                     # Log the download
                     with open(log_path, "a") as log_file:
-                        log_file.write(f"{time.time():<20} {chunk_name:<15} {ip:<20}\n")
+                        log_file.write(f'{time.strftime("%Y-%m-%d %H:%M:%S"):<20} {chunk_name:<15} {ip:<20}\n')
 
                     downloaded = True
                     break
@@ -242,12 +238,19 @@ class Peer:
 
         self.chunk_announcer = Chunk_Announcer()
         self.content_discovery = Content_Discovery()
+        self.chunk_uploader = Chunk_Uploader()
+        time.sleep(3)
 
-        selection = input('Do you want to download a content? (y/n)')
-        if selection == 'y':
-            self.chunk_uploader = Chunk_Uploader()
-            self.chunk_downloader = Chunk_Downloader('content_dict.txt')
-        
+        while True:
+            selection = input('\nDo you want to download a content? (y/n): ')
+            if selection == 'y':
+                self.chunk_downloader = Chunk_Downloader('content_dict.txt')
+            elif selection == 'n':
+                print('You will only listen and upload requested chunks.')
+                break
+            else:
+                continue
+            
 
 
 

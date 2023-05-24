@@ -4,4 +4,5 @@ from classes import Chunk_Announcer, Content_Discovery, Chunk_Uploader, Chunk_Do
 def main():
     peer1 = Peer()
 
-main()
+if __name__ == '__main__':
+    main()
