@@ -238,14 +238,24 @@ class Peer:
 
         self.chunk_announcer = Chunk_Announcer()
         self.content_discovery = Content_Discovery()
-        self.chunk_uploader = Chunk_Uploader()
+
         time.sleep(3)
 
+        selection_upload = input('\nDo you want to upload your content? (y/n): ')
+        if selection_upload == 'y':
+            self.chunk_uploader = Chunk_Uploader()
+        elif selection_upload == 'n':
+            print('You will only download chunks.')
+        else:
+            print('You will only download chunks.')
+
+        
+
         while True:
-            selection = input('\nDo you want to download a content? (y/n): ')
-            if selection == 'y':
+            selection_download = input('\nDo you want to download a content? (y/n): ')
+            if selection_download == 'y':
                 self.chunk_downloader = Chunk_Downloader('content_dict.txt')
-            elif selection == 'n':
+            elif selection_download == 'n':
                 print('You will only listen and upload requested chunks.')
                 break
             else:
