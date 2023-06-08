@@ -62,7 +62,7 @@ class Content_Discovery:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # bind the socket to a specific address and port
-        sock.bind(("255.255.255.255", 5001))
+        sock.bind(("", 5001))
 
         while True:
             # receive the broadcast message
